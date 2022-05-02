@@ -1,9 +1,12 @@
+use std::{fs::File, io::Read};
+
 use structopt::StructOpt;
 
 mod generator;
+mod data;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "blockblog", about = "Markdown blog generator with a block-based syntax")]
+#[structopt(name = "blockblog", about = "YAML and Markdown based static HTML generator")]
 enum Args {
     #[structopt(name = "generate", about = "Generate all static HTML pages")]
     Generate {
