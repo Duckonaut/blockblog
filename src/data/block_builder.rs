@@ -21,6 +21,7 @@ pub struct BlockBuilder<'a> {
 
     indent_level: usize,
     current_file: String,
+    current_loop_value: String,
 
     generated_styles: HashMap<String, HashMap<String, String>>,
 }
@@ -28,11 +29,12 @@ pub struct BlockBuilder<'a> {
 impl<'a> BlockBuilder<'a> {
     pub fn new(config: BlockBuilderConfig<'a>) -> Self {
         Self {
-            block_items: Self::get_block_definitions(&config.input_dir).unwrap(),
+            block_items: Self::get_block_definitions(&config.input_dir, &config.input_dir).unwrap(),
             config,
             indent_level: 0,
             generated_styles: HashMap::new(),
             current_file: String::new(),
+            current_loop_value: String::new(),
         }
     }
 
@@ -99,6 +101,32 @@ impl<'a> BlockBuilder<'a> {
                 output.push_str(&self.get_indent());
                 output.push_str(self.include_verbose(path, params)?.as_str());
             }
+            BlockItem::ForEach { values, pattern, items } => {
+                output.push_str(&self.get_indent());
+
+                if values.is_some() && pattern.is_some() {
+                    return Err(ParseError {
+                        file: self.current_file.clone(),
+                        message: "ForEach block cannot have both values and pattern".to_string(),
+                    });
+                }
+
+                match values {
+                    Some(what) => {
+                        output.push_str(self.for_each(what, items)?.as_str());
+                    },
+                    None => (),
+                }
+
+                match pattern {
+                    Some(what) => { 
+                        output.push_str(self.for_each_file(what, items)?.as_str());
+                    },
+                    None => (),
+                }
+            }
+            BlockItem::LoopValue => output.push_str(&self.loop_value()?.as_str()),
+            BlockItem::LoopValueFileName => output.push_str(&self.loop_value_filename()?.as_str()),
         }
 
         output.push('\n');
@@ -106,7 +134,7 @@ impl<'a> BlockBuilder<'a> {
         Ok(output)
     }
 
-    fn get_block_definitions(input: &Path) -> Result<HashMap<String, BlockItem>, Error> {
+    fn get_block_definitions(input: &Path, base_input: &Path) -> Result<HashMap<String, BlockItem>, Error> {
         let mut definitions = HashMap::new();
 
         let dir = input.exists() && input.is_dir();
@@ -115,18 +143,32 @@ impl<'a> BlockBuilder<'a> {
             for entry in std::fs::read_dir(input)? {
                 let entry = entry?;
                 let path = entry.path();
-                let ext = path.extension().unwrap().to_str().unwrap();
+                let path_relative_to_input = path.clone();
+                let path_relative_to_input = path_relative_to_input.strip_prefix(base_input).unwrap();
+                let path_str = path.to_str().unwrap();
 
-                if ext == "yml" {
-                    let mut file = std::fs::File::open(path.clone())?;
-                    let mut contents = String::new();
-                    file.read_to_string(&mut contents)?;
+                if path.is_dir() {
+                    let mut block_items = Self::get_block_definitions(&path, &base_input)?;
 
-                    let item: BlockItem = match serde_yaml::from_str(&contents) {
-                        Ok(what) => what,
-                        Err(why) => return Err(Error::new(io::ErrorKind::Other, why)),
-                    };
-                    definitions.insert(path.file_stem().unwrap().to_str().unwrap().into(), item);
+                    for (name, item) in block_items.drain() {
+                        let block_name = format!("{}/{}", path_relative_to_input.to_str().unwrap(), name);
+                        definitions.insert(block_name, item);
+                    }
+                } else if path.is_file() {
+                    let ext = path.extension().unwrap().to_str().unwrap();
+
+                    if ext == "yml" {
+                        let mut file = std::fs::File::open(path.clone())?;
+                        let mut contents = String::new();
+                        file.read_to_string(&mut contents)?;
+
+                        let item: BlockItem = match serde_yaml::from_str(&contents) {
+                            Ok(what) => what,
+                            Err(why) => return Err(Error::new(io::ErrorKind::Other, why)),
+                        };
+                        definitions
+                            .insert(path.file_stem().unwrap().to_str().unwrap().into(), item);
+                    }
                 }
             }
         }
@@ -178,7 +220,7 @@ impl<'a> BlockBuilder<'a> {
         &mut self,
         style: &Option<String>,
         html_type: &Option<String>,
-        items: &Vec<BlockItem>,
+        items: &[BlockItem],
     ) -> Result<String, ParseError> {
         let mut output = String::new();
         let html_type = match html_type {
@@ -298,5 +340,66 @@ impl<'a> BlockBuilder<'a> {
             indent.push_str(self.config.indent_string);
         }
         indent
+    }
+
+    fn for_each(&mut self, values: &[String], items: &[BlockItem]) -> Result<String, ParseError> {
+        let mut output = String::new();
+
+        for value in values {
+            self.current_loop_value = value.clone();
+            output.push_str(&self.get_indent());
+
+            for item in items {
+                output.push_str(&self.construct_block(item)?);
+            }
+
+            output.push_str(&self.get_indent());
+        }
+
+        Ok(output)
+    }
+
+    fn for_each_file(&mut self, pattern: &str, items: &[BlockItem]) -> Result<String, ParseError> {
+        let mut output = String::new();
+
+        let options = glob::MatchOptions {
+            case_sensitive: false,
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+        };
+
+        let pattern = self.config.input_dir.to_str().unwrap().to_string() + "/" + &pattern.to_string();
+
+        let files = glob::glob_with(&pattern, options).unwrap();
+
+        for entry in files {
+            let entry = entry.unwrap();
+            let file_name = entry.file_name().unwrap().to_str().unwrap();
+
+            self.current_file = file_name.to_owned();
+            self.current_loop_value = file_name.to_owned();
+
+            output.push_str(&self.get_indent());
+
+            for item in items {
+                output.push_str(&self.construct_block(item)?);
+            }
+
+            output.push_str(&self.get_indent());
+        }
+
+        Ok(output)
+    }   
+
+    fn loop_value(&self) -> Result<String, ParseError> {
+        Ok(self.current_loop_value.clone())
+    }
+
+    fn loop_value_filename(&self) -> Result<String, ParseError> {
+        let output = self.current_loop_value.clone();
+
+        let output = Path::new(&output).file_stem().unwrap().to_str().unwrap().to_string();
+
+        Ok(output)
     }
 }

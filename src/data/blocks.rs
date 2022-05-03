@@ -58,6 +58,19 @@ pub enum BlockItem {
     },
     #[serde(rename = "br")]
     Br,
+    #[serde(rename = "$for_each")]
+    ForEach {
+        #[serde(rename = "pattern")]
+        pattern: Option<String>,
+        #[serde(rename = "values")]
+        values: Option<Vec<String>>,
+        #[serde(rename = "items")]
+        items: Vec<BlockItem>,
+    },
+    #[serde(rename = "$loop_value")]
+    LoopValue,
+    #[serde(rename = "$loop_value_filename")]
+    LoopValueFileName
 }
 
 

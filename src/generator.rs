@@ -1,4 +1,5 @@
 use colored::*;
+use color_eyre::Result;
 use std::{
     fs::{read_dir, DirEntry, File},
     io::{Read, Write},
@@ -7,52 +8,14 @@ use std::{
 
 use crate::data::block_builder::{BlockBuilder, BlockBuilderConfig};
 
-pub fn generate(input: PathBuf, output: PathBuf, safe: bool) {
-    let input_files = read_dir(input.clone()).expect("Failed to read input directory");
-
-    if !output.exists() {
-        std::fs::create_dir_all(&output).expect("Failed to create output directory");
-    }
-
-    let output_files = read_dir(output.clone()).expect("Failed to read output directory");
-
-    if output_files.count() != 0 {
-        if safe {
-            panic!(
-                "{}",
-                "Output directory is not empty! Aborting because safe mode is on.".red()
-            );
-        } else {
-            println!(
-                "{}",
-                "Output directory is not empty! Files will be overwritten...".yellow()
-            );
-        }
-    }
+pub fn generate(input: PathBuf, output: PathBuf, safe: bool) -> Result<()> {
+    build_asset_files(&input, &output, safe)?;
 
     let mut block_builder = BlockBuilder::new(BlockBuilderConfig {
-        input_dir: input,
+        input_dir: input.clone(),
         output_dir: output.to_owned(),
         indent_string: "    ",
     });
-
-
-    for file in input_files {
-        let file = file.expect("Failed to read file");
-        let file_name = file.file_name();
-        let file_name = file_name
-            .to_str()
-            .expect("Failed to convert file name to string");
-
-        if file_name.ends_with(".md") {
-            generate_html_from_md(&file, file_name, &output, safe);
-        } else if file_name.ends_with(".yml") {
-            // we don't need to do anything with the block definitions
-        } else {
-            println!("Copying file {}", file_name);
-            std::fs::copy(file.path(), output.join(file_name)).expect("Failed to copy file");
-        }
-    }
 
     for (block_name, _) in block_builder.block_items.clone() {
         let block_name = block_name.to_string();
@@ -84,16 +47,62 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool) {
         let mut block_file = File::create(output.join(block_name.to_owned() + ".html"))
             .expect("Failed to create file");
 
-        block_file
-            .write_all(
-                block_builder.construct_by_name(block_name.as_str())
-                    .unwrap()
-                    .as_bytes(),
-            )
-            .expect("Failed to write block content to file");
+        block_file.write_all(
+            block_builder
+                .construct_by_name(block_name.as_str())
+                .unwrap()
+                .as_bytes(),
+        )?;
     }
 
     println!("{}", "Generation complete!".green());
+    Ok(())
+}
+
+fn build_asset_files(input: &Path, output: &Path, safe: bool) -> Result<()> {
+    let input_files = read_dir(input.clone())?;
+
+    if !output.exists() {
+        std::fs::create_dir_all(&output)?;
+    }
+
+    let output_files = read_dir(output.clone())?;
+
+    if output_files.count() != 0 {
+        if safe {
+            panic!(
+                "{}",
+                "Output directory is not empty! Aborting because safe mode is on.".red()
+            );
+        } else {
+            println!(
+                "{}",
+                "Output directory is not empty! Files will be overwritten...".yellow()
+            );
+        }
+    }
+    for file in input_files {
+        let file = file.expect("Failed to read file");
+        let file_name = file.file_name();
+        let file_name = file_name.to_str().unwrap();
+
+        if file_name.ends_with(".md") {
+            generate_html_from_md(&file, file_name, &output, safe);
+        } else if file_name.ends_with(".yml") {
+            // we don't need to do anything with the block definitions
+        } else if file.path().is_dir() {
+            let mut new_input = input.to_owned();
+            new_input.push(file_name);
+            let mut new_output = output.to_owned();
+            new_output.push(file_name);
+            build_asset_files(&new_input, &new_output, safe)?;
+        } else {
+            println!("Copying file {}", file_name);
+            std::fs::copy(file.path(), output.join(file_name))?;
+        }
+    }
+
+    Ok(())
 }
 
 pub fn generate_html_from_md(file: &DirEntry, file_name: &str, output: &Path, safe: bool) {
