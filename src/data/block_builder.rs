@@ -97,7 +97,7 @@ impl<'a> BlockBuilder<'a> {
             }
         }
 
-        output.push_str("\n");
+        output.push('\n');
 
         Ok(output)
     }
@@ -170,7 +170,7 @@ impl<'a> BlockBuilder<'a> {
             }
         }
 
-        output.push_str("\n");
+        output.push('\n');
         self.indent_level += 1;
 
         for item in items {
