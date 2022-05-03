@@ -2,10 +2,10 @@ use colored::*;
 use std::{
     fs::{read_dir, DirEntry, File},
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
-use crate::data::templates::{get_block_definitions, construct_from_block};
+use crate::data::block_builder::{BlockBuilder, BlockBuilderConfig};
 
 pub fn generate(input: PathBuf, output: PathBuf, safe: bool) {
     let input_files = read_dir(input.clone()).expect("Failed to read input directory");
@@ -30,7 +30,12 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool) {
         }
     }
 
-    let block_definitions = get_block_definitions(&input).unwrap();
+    let mut block_builder = BlockBuilder::new(BlockBuilderConfig {
+        input_dir: input,
+        output_dir: output.to_owned(),
+        indent_string: "    ",
+    });
+
 
     for file in input_files {
         let file = file.expect("Failed to read file");
@@ -49,19 +54,49 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool) {
         }
     }
 
-    dbg!(&block_definitions);
+    for (block_name, _) in block_builder.block_items.clone() {
+        let block_name = block_name.to_string();
 
-    for (block_name, block) in block_definitions.clone() {
-        let mut block_file = File::create(output.join(block_name.to_owned() + ".md")).expect("Failed to create file");
+        let block_file = output.join(format!("{}.html", block_name));
+
+        if block_file.exists() {
+            if safe {
+                panic!(
+                    "{}",
+                    format!(
+                        "Block file {} already exists! Aborting because safe mode is on.",
+                        block_name.normal()
+                    )
+                    .red()
+                );
+            } else {
+                println!(
+                    "{}",
+                    format!(
+                        "Block file {} already exists! File will be overwritten...",
+                        block_name.normal()
+                    )
+                    .yellow()
+                );
+            }
+        }
+
+        let mut block_file = File::create(output.join(block_name.to_owned() + ".html"))
+            .expect("Failed to create file");
+
         block_file
-            .write_all(construct_from_block(block_name.as_str(), &block, &block_definitions).unwrap().as_bytes())
+            .write_all(
+                block_builder.construct_by_name(block_name.as_str())
+                    .unwrap()
+                    .as_bytes(),
+            )
             .expect("Failed to write block content to file");
     }
 
     println!("{}", "Generation complete!".green());
 }
 
-pub fn generate_html_from_md(file: &DirEntry, file_name: &str, output: &PathBuf, safe: bool) {
+pub fn generate_html_from_md(file: &DirEntry, file_name: &str, output: &Path, safe: bool) {
     let output_filename = file_name.replace(".md", ".html");
     let output_file = output.join(output_filename.clone());
 
@@ -87,7 +122,7 @@ pub fn generate_html_from_md(file: &DirEntry, file_name: &str, output: &PathBuf,
         .read_to_string(&mut input_file_content)
         .expect("Failed to read input file");
 
-    let mut file = File::create(output_file.clone()).expect("Failed to create output file");
+    let mut file = File::create(output_file).expect("Failed to create output file");
 
     let contents = markdown::to_html(&input_file_content);
 

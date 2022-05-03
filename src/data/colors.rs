@@ -124,18 +124,10 @@ impl Default for Color {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct LinkColor {
     pub normal: Color,
     pub hover: Color,
-}
-
-
-
-impl Default for LinkColor {
-    fn default() -> Self {
-        Self { normal: Default::default(), hover: Default::default() }
-    }
 }
 
 impl Display for LinkColor {

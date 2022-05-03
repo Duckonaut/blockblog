@@ -1,5 +1,3 @@
-use std::{fs::File, io::Read};
-
 use structopt::StructOpt;
 
 mod generator;
