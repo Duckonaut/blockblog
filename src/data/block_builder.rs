@@ -95,6 +95,10 @@ impl<'a> BlockBuilder<'a> {
                 output.push_str(&self.get_indent());
                 output.push_str(self.br()?.as_str());
             }
+            BlockItem::IncludeVerbose { path, params } => {
+                output.push_str(&self.get_indent());
+                output.push_str(self.include_verbose(path, params)?.as_str());
+            }
         }
 
         output.push('\n');
@@ -131,6 +135,28 @@ impl<'a> BlockBuilder<'a> {
     }
 
     fn include(&mut self, included_block_name: &str) -> Result<String, ParseError> {
+        if self.block_items.get(included_block_name).is_some() {
+            let old_file = self.current_file.clone();
+            self.current_file = included_block_name.to_string();
+            let output = self.construct_by_name(included_block_name).unwrap();
+            self.current_file = old_file.to_string();
+            Ok(output)
+        } else {
+            return Err(ParseError {
+                file: self.current_file.to_owned(),
+                message: format!(
+                    "Could not find block definition for {}",
+                    included_block_name
+                ),
+            });
+        }
+    }
+
+    fn include_verbose(
+        &mut self,
+        included_block_name: &str,
+        params: &Option<Vec<String>>,
+    ) -> Result<String, ParseError> {
         if self.block_items.get(included_block_name).is_some() {
             Ok(self.construct_by_name(included_block_name).unwrap())
         } else {
@@ -203,21 +229,58 @@ impl<'a> BlockBuilder<'a> {
     }
 
     fn text(&self, text: &String) -> Result<String, ParseError> {
-        Ok(format!("{}\n", text))
+        Ok(format!("{}", text))
     }
 
     fn link(
-        &self,
+        &mut self,
         text: &String,
         url: &String,
         link_style: &LinkStyle,
     ) -> Result<String, ParseError> {
         match link_style {
             LinkStyle::Explicit {
-                color: _color,
-                underline: _underline,
-                visited_color: _visited_color,
-            } => Ok(format!("<a href=\"{}\">{}</a>", url, text)),
+                color,
+                underline,
+                visited_color,
+            } => {
+                let mut normal_style: HashMap<String, String> = HashMap::new();
+                let mut hover_style: HashMap<String, String> = HashMap::new();
+
+                normal_style.insert("color".to_string(), color.normal.to_string());
+                hover_style.insert("color".to_string(), color.hover.to_string());
+
+                if underline.to_owned() {
+                    normal_style.insert("text-decoration".to_string(), "underline".to_string());
+                }
+
+                hover_style.insert("text-decoration".to_string(), "underline".to_string());
+
+                let mut visited_style = normal_style.clone();
+
+                match visited_color {
+                    Some(what) => {
+                        visited_style.insert("color".to_string(), what.normal.to_string());
+                    }
+                    None => {}
+                };
+
+                let class = format!("link-{}-{}", color.normal, underline);
+
+                self.generated_styles
+                    .insert(format!("{}:link", class.clone()), normal_style);
+                self.generated_styles
+                    .insert(format!("{}:visited", class.clone()), visited_style);
+                self.generated_styles
+                    .insert(format!("{}:hover", class.clone()), hover_style.clone());
+                self.generated_styles
+                    .insert(format!("{}:active", class.clone()), hover_style);
+
+                Ok(format!(
+                    "<a href=\"{}\" class=\"{}\">{}</a>",
+                    url, class, text
+                ))
+            }
             LinkStyle::Style(style) => Ok(format!(
                 "<a href=\"{}\" class=\"{}\">{}</a>",
                 url, style, text

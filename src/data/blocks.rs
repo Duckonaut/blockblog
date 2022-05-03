@@ -18,6 +18,11 @@ pub enum LinkStyle {
 pub enum BlockItem {
     #[serde(rename = "include")]
     Include(String),
+    #[serde(rename = "include")]
+    IncludeVerbose { 
+        path: String,
+        params: Option<Vec<String>>,
+    },
     #[serde(rename = "title")]
     Title(String),
     #[serde(rename = "block")]
