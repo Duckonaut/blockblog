@@ -127,11 +127,15 @@ impl Default for Color {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct LinkColor {
     pub normal: Color,
-    pub hover: Color,
+    pub hover: Option<Color>,
 }
 
 impl Display for LinkColor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ normal: {}, hover: {} }}", self.normal, self.hover)
+        if let Some(ref hover) = self.hover {
+            write!(f, "{{ normal: {}, hover: {} }}", self.normal, hover)
+        } else {
+            write!(f, "{}", self.normal)
+        }
     }
 }

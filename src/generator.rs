@@ -1,5 +1,5 @@
-use colored::*;
 use color_eyre::Result;
+use colored::*;
 use std::{
     fs::{read_dir, DirEntry, File},
     io::{Read, Write},
@@ -8,13 +8,14 @@ use std::{
 
 use crate::data::block_builder::{BlockBuilder, BlockBuilderConfig};
 
-pub fn generate(input: PathBuf, output: PathBuf, safe: bool) -> Result<()> {
+pub fn generate(input: PathBuf, output: PathBuf, safe: bool, debug: bool) -> Result<()> {
     build_asset_files(&input, &output, safe)?;
 
     let mut block_builder = BlockBuilder::new(BlockBuilderConfig {
-        input_dir: input.clone(),
+        input_dir: input,
         output_dir: output.to_owned(),
         indent_string: "    ",
+        debug
     });
 
     for (block_name, _) in block_builder.block_items.clone() {
@@ -24,14 +25,15 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool) -> Result<()> {
 
         if block_file.exists() {
             if safe {
-                panic!(
+                println!(
                     "{}",
                     format!(
-                        "Block file {} already exists! Aborting because safe mode is on.",
+                        "Block file {} already exists! Ignoring it because safe mode is on.",
                         block_name.normal()
                     )
                     .red()
                 );
+                continue;
             } else {
                 println!(
                     "{}",
@@ -49,10 +51,27 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool) -> Result<()> {
 
         block_file.write_all(
             block_builder
-                .construct_by_name(block_name.as_str())
-                .unwrap()
+                .construct_by_name(block_name.as_str())?
                 .as_bytes(),
         )?;
+    }
+
+    let generated_style_file = output.join("generated_style.css");
+
+    if safe && generated_style_file.exists() {
+        println!(
+            "{}",
+            "Generated style file already exists! Ignoring it because safe mode is on.".red()
+        );
+    } else {
+        println!(
+            "{}",
+            "Generated style file already exists! File will be overwritten...".yellow()
+        );
+
+        let mut generated_style_file = File::create(generated_style_file)?;
+
+        generated_style_file.write_all(block_builder.get_generated_styles().as_bytes())?;
     }
 
     println!("{}", "Generation complete!".green());
@@ -60,13 +79,13 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool) -> Result<()> {
 }
 
 fn build_asset_files(input: &Path, output: &Path, safe: bool) -> Result<()> {
-    let input_files = read_dir(input.clone())?;
+    let input_files = read_dir(input)?;
 
     if !output.exists() {
         std::fs::create_dir_all(&output)?;
     }
 
-    let output_files = read_dir(output.clone())?;
+    let output_files = read_dir(output)?;
 
     if output_files.count() != 0 {
         if safe {
@@ -87,7 +106,7 @@ fn build_asset_files(input: &Path, output: &Path, safe: bool) -> Result<()> {
         let file_name = file_name.to_str().unwrap();
 
         if file_name.ends_with(".md") {
-            generate_html_from_md(&file, file_name, &output, safe);
+            generate_html_from_md(&file, file_name, output, safe);
         } else if file_name.ends_with(".yml") {
             // we don't need to do anything with the block definitions
         } else if file.path().is_dir() {

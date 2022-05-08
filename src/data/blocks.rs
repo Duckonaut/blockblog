@@ -14,12 +14,27 @@ pub enum LinkStyle {
     Style(String),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct Head {
+    pub title: Option<String>,
+    pub icon: Option<String>,
+    pub styles: Option<Vec<String>>,
+    pub scripts: Option<Vec<String>>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BlockItem {
+    #[serde(rename = "html")]
+    Html {
+        #[serde(rename = "head")]
+        head: Option<Head>,
+        #[serde(rename = "body")]
+        body: Option<Vec<BlockItem>>,
+    },
     #[serde(rename = "include")]
     Include(String),
     #[serde(rename = "include")]
-    IncludeVerbose { 
+    IncludeVerbose {
         path: String,
         params: Option<Vec<String>>,
     },
@@ -70,7 +85,5 @@ pub enum BlockItem {
     #[serde(rename = "$loop_value")]
     LoopValue,
     #[serde(rename = "$loop_value_filename")]
-    LoopValueFileName
+    LoopValueFileName,
 }
-
-

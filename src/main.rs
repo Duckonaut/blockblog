@@ -34,6 +34,12 @@ enum Args {
             help = "Do not remove output directory files already present"
         )]
         safe: bool,
+        #[clap(
+            short = 'd',
+            long = "debug",
+            help = "Insert debug information in the generated HTML"
+        )]
+        debug: bool,
     },
 }
 
@@ -46,7 +52,8 @@ fn main() -> Result<()> {
             input,
             output,
             safe,
-        } => generator::generate(input, output, safe)?,
+            debug,
+        } => generator::generate(input, output, safe, debug)?,
     }
 
     Ok(())
