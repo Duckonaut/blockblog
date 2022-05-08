@@ -1,0 +1,19 @@
+html:
+  head:
+    title: HOMEPAGE
+  body:
+    - block:
+        style: vertical
+        items:
+          - include: banner
+          - title: Stanisław Zagórowski
+          - block:
+              style: subtitle
+              html_type: h2
+              items:
+                - text: aka Duckonaut, EchoDuck
+          - image:
+              path: duckpfp.png
+              alt: duck
+          - markdown: about-me.md
+

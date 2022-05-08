@@ -1,0 +1,9 @@
+block:
+  style: horizontal
+  items:
+    - link:
+        text: "[Home]"
+        url: index.html
+        link_style: 
+          style: home-banner
+        

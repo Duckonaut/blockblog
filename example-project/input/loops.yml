@@ -1,0 +1,30 @@
+block:
+  items:
+    - $for_each:
+        values:
+          - hi
+          - test
+          - third value
+        items:
+          - text: Hello, this is $loop_value speaking (also known as \$loop_value)
+
+    - $for_each:
+        pattern: "games/*"
+        items:
+          - include: games/$loop_value_filename
+          - text: $loop_value_filename
+          - text: \$loop_value_filename
+          - link:
+              text: go to $loop_value_filename
+              url: $loop_value_filename.html
+              link_style:
+                explicit:
+                  underline: true
+                  color: 
+                    normal: '#008000'
+                    hover: '#00ff00'
+                  visited_color:
+                    normal: '#800080'
+                
+            
+
