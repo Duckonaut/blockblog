@@ -1,5 +1,7 @@
 use clap::Parser;
 use color_eyre::Result;
+use log::{Level, LevelFilter};
+use simplelog::{Color, ConfigBuilder, TermLogger, TerminalMode};
 
 mod data;
 mod generator;
@@ -53,7 +55,12 @@ fn main() -> Result<()> {
             output,
             safe,
             debug,
-        } => generator::generate(input, output, safe, debug)?,
+        } => match generator::generate(input, output, safe, debug) {
+            Ok(_) => (),
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        },
     }
 
     Ok(())
@@ -63,6 +70,17 @@ fn setup() -> Result<()> {
     if std::env::var("RUST_BACKTRACE").is_err() {
         std::env::set_var("RUST_BACKTRACE", "1")
     }
+
+    TermLogger::init(
+        LevelFilter::Info,
+        ConfigBuilder::new()
+            .set_level_color(Level::Info, Some(Color::Cyan))
+            .set_level_color(Level::Warn, Some(Color::Yellow))
+            .set_level_color(Level::Error, Some(Color::Red))
+            .build(),
+        TerminalMode::Stdout,
+        simplelog::ColorChoice::Auto
+    )?;
     color_eyre::install()?;
 
     Ok(())

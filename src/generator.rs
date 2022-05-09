@@ -6,6 +6,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use log::{error, info, warn};
+
 use crate::data::block_builder::{BlockBuilder, BlockBuilderConfig};
 
 pub fn generate(input: PathBuf, output: PathBuf, safe: bool, debug: bool) -> Result<()> {
@@ -15,39 +17,39 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool, debug: bool) -> Res
         input_dir: input,
         output_dir: output.to_owned(),
         indent_string: "    ",
-        debug
-    });
+        debug,
+    })?;
 
     for (block_name, _) in block_builder.block_items.clone() {
+        info!("Building block: {}", block_name.cyan().bold());
+
         let block_name = block_name.to_string();
 
         let block_file = output.join(format!("{}.html", block_name));
 
         if block_file.exists() {
             if safe {
-                println!(
+                error!(
                     "{}",
                     format!(
                         "Block file {} already exists! Ignoring it because safe mode is on.",
-                        block_name.normal()
+                        block_name.cyan().bold()
                     )
                     .red()
                 );
                 continue;
             } else {
-                println!(
+                warn!(
                     "{}",
                     format!(
                         "Block file {} already exists! File will be overwritten...",
-                        block_name.normal()
+                        block_name.yellow().bold()
                     )
-                    .yellow()
                 );
             }
         }
 
-        let mut block_file = File::create(output.join(block_name.to_owned() + ".html"))
-            .expect("Failed to create file");
+        let mut block_file = File::create(output.join(block_name.to_owned() + ".html"))?;
 
         block_file.write_all(
             block_builder
@@ -59,14 +61,14 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool, debug: bool) -> Res
     let generated_style_file = output.join("generated_style.css");
 
     if safe && generated_style_file.exists() {
-        println!(
-            "{}",
-            "Generated style file already exists! Ignoring it because safe mode is on.".red()
+        error!(
+            "Generated style file {} already exists! Ignoring it because safe mode is on.",
+            generated_style_file.to_string_lossy().red().bold()
         );
     } else {
-        println!(
-            "{}",
-            "Generated style file already exists! File will be overwritten...".yellow()
+        warn!(
+            "Generated style file {} already exists! File will be overwritten...",
+            generated_style_file.to_string_lossy().cyan().bold()
         );
 
         let mut generated_style_file = File::create(generated_style_file)?;
@@ -74,7 +76,7 @@ pub fn generate(input: PathBuf, output: PathBuf, safe: bool, debug: bool) -> Res
         generated_style_file.write_all(block_builder.get_generated_styles().as_bytes())?;
     }
 
-    println!("{}", "Generation complete!".green());
+    info!("{}", "Done!".green().bold());
     Ok(())
 }
 
@@ -89,14 +91,14 @@ fn build_asset_files(input: &Path, output: &Path, safe: bool) -> Result<()> {
 
     if output_files.count() != 0 {
         if safe {
-            panic!(
+            return Err(color_eyre::eyre::eyre!(
                 "{}",
                 "Output directory is not empty! Aborting because safe mode is on.".red()
-            );
+            ));
         } else {
-            println!(
-                "{}",
-                "Output directory is not empty! Files will be overwritten...".yellow()
+            warn!(
+                "Output directory {} is not empty! Files will be overwritten...",
+                output.to_string_lossy().yellow().bold()
             );
         }
     }
@@ -131,13 +133,13 @@ pub fn generate_html_from_md(file: &DirEntry, file_name: &str, output: &Path, sa
     if output_file.exists() {
         if safe {
             panic!(
-                "{}",
-                "Output file already exists! Aborting because safe mode is on.".red()
+                "Output file {} already exists! Aborting because safe mode is on.",
+                output_file.to_string_lossy().red()
             );
         } else {
-            println!(
+            info!(
                 "Output file {} already exists! File will be overwritten...",
-                output_filename
+                output_filename.yellow().bold()
             );
         }
     }

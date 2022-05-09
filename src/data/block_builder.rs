@@ -6,10 +6,13 @@ use std::{
 };
 
 use color_eyre::Result;
+use colored::Colorize;
 
 use super::blocks::{BlockItem, Head, LinkStyle};
 
 use regex::{Captures, Regex};
+
+use log::info;
 
 pub struct BlockBuilderConfig<'a> {
     pub input_dir: PathBuf,
@@ -30,15 +33,15 @@ pub struct BlockBuilder<'a> {
 }
 
 impl<'a> BlockBuilder<'a> {
-    pub fn new(config: BlockBuilderConfig<'a>) -> Self {
-        Self {
-            block_items: Self::get_block_definitions(&config.input_dir, &config.input_dir).unwrap(),
+    pub fn new(config: BlockBuilderConfig<'a>) -> Result<Self> {
+        Ok(Self {
+            block_items: Self::get_block_definitions(&config.input_dir, &config.input_dir)?,
             config,
             indent_level: 0,
             generated_styles: HashMap::new(),
             current_file: String::new(),
             current_loop_value: String::new(),
-        }
+        })
     }
 
     pub fn construct_by_name(&mut self, block_name: &str) -> Result<String> {
@@ -52,6 +55,8 @@ impl<'a> BlockBuilder<'a> {
             })?;
             block.clone()
         };
+
+        self.current_file = block_name.to_string();
 
         self.construct_block(&block)
     }
@@ -280,6 +285,11 @@ impl<'a> BlockBuilder<'a> {
     }
 
     fn include(&mut self, included_block_name: &str) -> Result<String> {
+        info!(
+            "Including block {} in {}",
+            included_block_name.cyan().bold(),
+            self.current_file.cyan().bold()
+        );
         if self.block_items.get(included_block_name).is_some() {
             let mut output = String::new();
 
@@ -509,7 +519,6 @@ impl<'a> BlockBuilder<'a> {
             let entry = entry.unwrap();
             let file_name = entry.file_name().unwrap().to_str().unwrap();
 
-            self.current_file = file_name.to_owned();
             self.current_loop_value = file_name.to_owned();
 
             for item in items {
